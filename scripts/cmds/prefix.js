@@ -1,105 +1,350 @@
 const fs = require("fs-extra");
-const { utils } = global;
+const axios = require("axios");
+const path = require("path");
 
 module.exports = {
-				config: {
-								name: "prefix",
-								version: "1.4",
-								author: "NTKhang & NeoKEX",
-								countDown: 5,
-								role: 0,
-								description: "Thay đổi dấu lệnh của bot trong box chat của bạn hoặc cả hệ thống bot (chỉ admin bot)",
-								category: "config",
-								guide: {
-												vi: "   {pn} <new prefix>: thay đổi prefix mới trong box chat của bạn"
-																+ "\n   Ví dụ:"
-																+ "\n    {pn} #"
-																+ "\n\n   {pn} <new prefix> -g: thay đổi prefix mới trong hệ thống bot (chỉ admin bot)"
-																+ "\n   Ví dụ:"
-																+ "\n    {pn} # -g"
-																+ "\n\n   {pn} reset: thay đổi prefix trong box chat của bạn về mặc định",
-												en: "   {pn} <new prefix>: change new prefix in your box chat"
-																+ "\n   Example:"
-																+ "\n    {pn} #"
-																+ "\n\n   {pn} <new prefix> -g: change new prefix in system bot (only admin bot)"
-																+ "\n   Example:"
-																+ "\n    {pn} # -g"
-																+ "\n\n   {pn} reset: change prefix in your box chat to default"
-								}
-				},
+	config: {
+		name: "prefix",
+		version: "4.0",
+		author: "IMON",
+		countDown: 5,
+		role: 0,
+		shortDescription: "Stylish Prefix System",
+		longDescription: "Change bot prefix with stylish video reply",
+		category: "config",
+		guide: {
+			en:
+				"{pn} <new prefix>\nExample: {pn} !\n\n{pn} <new prefix> -g\nExample: {pn} ! -g\n\n{pn} reset"
+		}
+	},
 
-				langs: {
-								vi: {
-												reset: "Đã reset prefix của bạn về mặc định: %1",
-												onlyAdmin: "Chỉ admin mới có thể thay đổi prefix hệ thống bot",
-												confirmGlobal: "Vui lòng thả cảm xúc bất kỳ vào tin nhắn này để xác nhận thay đổi prefix của toàn bộ hệ thống bot",
-												confirmThisThread: "Vui lòng thả cảm xúc bất kỳ vào tin nhắn này để xác nhận thay đổi prefix trong nhóm chat của bạn",
-												successGlobal: "Đã thay đổi prefix hệ thống bot thành: %1",
-												successThisThread: "Đã thay đổi prefix trong nhóm chat của bạn thành: %1",
-												myPrefix: "👋 Hey %1, did you ask for my prefix?\n➥ 🌐 Global: %2\n➥ 💬 This Chat: %3\nI'm %4 at your service 🫡"
-								},
-								en: {
-												reset: "Your prefix reset to default: %1",
-												onlyAdmin: "Only admin can change prefix of system bot",
-												confirmGlobal: "Please react to this message to confirm change prefix of system bot",
-												confirmThisThread: "Please react to this message to confirm change prefix in your box chat",
-												successGlobal: "Changed prefix of system bot to: %1",
-												successThisThread: "Changed prefix in your box chat to: %1",
-												myPrefix: "👋 Hey %1, did you ask for my prefix?\n➥ 🌐 Global: %2\n➥ 💬 This Chat: %3\nI'm %4 at your service 🫡"
-								}
-				},
+	langs: {
+		en: {
+			reset: "✅ Prefix reset successfully",
+			onlyAdmin: "⚠️ Only bot admin can change global prefix",
+			confirmGlobal: "⚡ React this message to confirm GLOBAL prefix change",
+			confirmThread: "⚡ React this message to confirm GROUP prefix change"
+		}
+	},
 
-				onStart: async function ({ message, role, args, commandName, event, threadsData, getLang }) {
-								if (!args[0])
-												return message.SyntaxError();
+	// START COMMAND
+	onStart: async function ({
+		message,
+		role,
+		args,
+		commandName,
+		event,
+		threadsData,
+		getLang
+	}) {
 
-								if (args[0] == 'reset') {
-												await threadsData.set(event.threadID, null, "data.prefix");
-												return message.reply(getLang("reset", global.GoatBot.config.prefix));
-								}
+		try {
 
-								const newPrefix = args[0];
-								const formSet = {
-												commandName,
-												author: event.senderID,
-												newPrefix
-								};
+			// CHECK PREFIX INPUT
+			if (!args[0]) {
+				return message.reply(
+					"⚠️ Please enter a new prefix"
+				);
+			}
 
-								if (args[1] === "-g")
-												if (role < 2)
-																return message.reply(getLang("onlyAdmin"));
-												else
-																formSet.setGlobal = true;
-								else
-												formSet.setGlobal = false;
+			// RESET PREFIX
+			if (args[0].toLowerCase() === "reset") {
 
-								return message.reply(args[1] === "-g" ? getLang("confirmGlobal") : getLang("confirmThisThread"), (err, info) => {
-												formSet.messageID = info.messageID;
-												global.GoatBot.onReaction.set(info.messageID, formSet);
-								});
-				},
+				await threadsData.set(
+					event.threadID,
+					null,
+					"data.prefix"
+				);
 
-				onReaction: async function ({ message, threadsData, event, Reaction, getLang }) {
-								const { author, newPrefix, setGlobal } = Reaction;
-								if (event.userID !== author)
-												return;
-								if (setGlobal) {
-												global.GoatBot.config.prefix = newPrefix;
-												fs.writeFileSync(global.client.dirConfig, JSON.stringify(global.GoatBot.config, null, 2));
-												return message.reply(getLang("successGlobal", newPrefix));
-								}
-								else {
-												await threadsData.set(event.threadID, newPrefix, "data.prefix");
-												return message.reply(getLang("successThisThread", newPrefix));
-								}
-				},
+				return message.reply(
+					`${getLang("reset")} ➜ ${global.GoatBot.config.prefix}`
+				);
+			}
 
-				onChat: async function ({ event, message, getLang, usersData }) {
-								if (event.body && event.body.toLowerCase() === "prefix")
-												return async () => {
-																const userName = await usersData.getName(event.senderID);
-																const botName = global.GoatBot.config.nickNameBot || "Bot";
-																return message.reply(getLang("myPrefix", userName, global.GoatBot.config.prefix, utils.getPrefix(event.threadID), botName));
-												};
+			// NEW PREFIX
+			const newPrefix = args[0];
+
+			// REACTION DATA
+			const formSet = {
+				commandName,
+				author: event.senderID,
+				newPrefix,
+				setGlobal: false
+			};
+
+			// GLOBAL PREFIX
+			if (args[1] === "-g") {
+
+				if (role < 2) {
+					return message.reply(
+						getLang("onlyAdmin")
+					);
 				}
+
+				formSet.setGlobal = true;
+			}
+
+			// CONFIRM MESSAGE
+			return message.reply(
+				formSet.setGlobal
+					? getLang("confirmGlobal")
+					: getLang("confirmThread"),
+
+				(err, info) => {
+
+					if (err) return;
+
+					formSet.messageID = info.messageID;
+
+					global.GoatBot.onReaction.set(
+						info.messageID,
+						formSet
+					);
+				}
+			);
+
+		} catch (err) {
+
+			console.log("PREFIX START ERROR:", err);
+
+			return message.reply(
+				"❌ Prefix command error"
+			);
+		}
+	},
+
+	// REACTION SYSTEM
+	onReaction: async function ({
+		message,
+		threadsData,
+		event,
+		Reaction
+	}) {
+
+		try {
+
+			const {
+				author,
+				newPrefix,
+				setGlobal
+			} = Reaction;
+
+			// SECURITY CHECK
+			if (event.userID !== author) return;
+
+			// VIDEO URL
+			const videoUrl =
+				"https://i.imgur.com/szfIKa3.mp4";
+
+			// TMP FOLDER
+			const tempDir = path.join(
+				__dirname,
+				"tmp"
+			);
+
+			// CREATE TMP
+			if (!fs.existsSync(tempDir)) {
+				fs.mkdirSync(tempDir, {
+					recursive: true
+				});
+			}
+
+			// FILE PATH
+			const filePath = path.join(
+				tempDir,
+				`prefix_${Date.now()}.mp4`
+			);
+
+			// DOWNLOAD VIDEO
+			const response = await axios({
+				url: videoUrl,
+				method: "GET",
+				responseType: "stream",
+				timeout: 30000
+			});
+
+			// SAVE VIDEO
+			const writer =
+				fs.createWriteStream(filePath);
+
+			response.data.pipe(writer);
+
+			// DOWNLOAD FINISH
+			writer.on("finish", async () => {
+
+				try {
+
+					// GLOBAL PREFIX
+					if (setGlobal) {
+
+						global.GoatBot.config.prefix =
+							newPrefix;
+
+						fs.writeFileSync(
+							global.client.dirConfig,
+							JSON.stringify(
+								global.GoatBot.config,
+								null,
+								2
+							)
+						);
+
+						await message.reply({
+							body: `
+╭━━━〔 🌐 GLOBAL PREFIX 🌐 〕━━━╮
+
+┃ ✅ PREFIX UPDATED
+┃ ⚡ NEW PREFIX: ${newPrefix}
+┃ 👑 STATUS: SUCCESS
+┃ 🚀 SYSTEM: ONLINE
+┃ 🏴‍☠️ OWNER: TIGER IMON
+
+╰━━━〔 ⚡ SYSTEM ACTIVE ⚡ 〕━━━╯
+`,
+							attachment:
+								fs.createReadStream(
+									filePath
+								)
+						});
+
+					} else {
+
+						// THREAD PREFIX
+						await threadsData.set(
+							event.threadID,
+							newPrefix,
+							"data.prefix"
+						);
+
+						await message.reply({
+							body: `
+╭━━━〔 💬 GROUP PREFIX 💬 〕━━━╮
+
+┃ ✅ PREFIX UPDATED
+┃ ⚡ NEW PREFIX: ${newPrefix}
+┃ 👑 STATUS: SUCCESS
+┃ 🚀 GROUP ACTIVE
+┃ 🏴‍☠️ OWNER: TIGER IMON
+
+╰━━━〔 ⚡ SYSTEM ACTIVE ⚡ 〕━━━╯
+`,
+							attachment:
+								fs.createReadStream(
+									filePath
+								)
+						});
+					}
+
+					// DELETE VIDEO
+					setTimeout(() => {
+
+						try {
+
+							if (
+								fs.existsSync(
+									filePath
+								)
+							) {
+								fs.unlinkSync(
+									filePath
+								);
+							}
+
+						} catch (e) {
+							console.log(
+								"DELETE ERROR:",
+								e
+							);
+						}
+
+					}, 5000);
+
+				} catch (err) {
+
+					console.log(
+						"SEND MESSAGE ERROR:",
+						err
+					);
+
+					if (fs.existsSync(filePath)) {
+						fs.unlinkSync(filePath);
+					}
+				}
+			});
+
+			// WRITE ERROR
+			writer.on("error", (err) => {
+
+				console.log(
+					"VIDEO WRITE ERROR:",
+					err
+				);
+
+				if (fs.existsSync(filePath)) {
+					fs.unlinkSync(filePath);
+				}
+			});
+
+		} catch (err) {
+
+			console.log(
+				"REACTION ERROR:",
+				err
+			);
+
+			return message.reply(
+				"❌ Reaction system error"
+			);
+		}
+	},
+
+	// PREFIX CHECK
+	onChat: async function ({
+		event,
+		message,
+		usersData
+	}) {
+
+		try {
+
+			if (
+				event.body &&
+				event.body.toLowerCase() ===
+					"prefix"
+			) {
+
+				// USER NAME
+				const name =
+					await usersData.getName(
+						event.senderID
+					);
+
+				// PREFIX
+				const threadPrefix =
+					global.utils.getPrefix(
+						event.threadID
+					);
+
+				// REPLY
+				return message.reply(`
+╭━━━〔 ⚡ BOT PREFIX ⚡ 〕━━━╮
+
+┃ 👤 USER: ${name}
+┃ 🌐 GLOBAL: ${global.GoatBot.config.prefix}
+┃ 💬 GROUP: ${threadPrefix}
+┃ 🚀 STATUS: ONLINE
+┃ 🏴‍☠️ OWNER: TIGER IMON
+
+╰━━━〔 👾 SYSTEM ACTIVE 👾 〕━━━╯
+`);
+			}
+
+		} catch (err) {
+
+			console.log(
+				"ONCHAT ERROR:",
+				err
+			);
+		}
+	}
 };
